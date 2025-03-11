@@ -26,7 +26,7 @@ from data_storage_fetcher import (
     fetch_and_store_24h_price_change,
     fetch_and_store_contract_data
 )
-
+from db_utils import init_db
 # 定义需要监控的代币列表
 SYMBOLS = ["BTCUSDT", "ETHUSDT"]
 
@@ -41,6 +41,7 @@ async def data_storage_task():
         await asyncio.gather(*tasks)
 
 if __name__ == "__main__":
+    init_db()  # 调用 init_db 函数初始化数据库
     application = ApplicationBuilder().token(TOKEN).post_init(set_bot_commands).build()
 
     # 注册处理器
