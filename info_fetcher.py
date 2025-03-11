@@ -27,37 +27,46 @@ async def get_token_info(token_symbol):
 
 async def get_funding_rate_and_open_interest(token_symbol):
     try:
-        # 构建获取合约资金费率的请求 URL
-        # 从 Binance 的期货 API 获取指定交易对的最新资金费率，只取 1 条记录
+        # 构建获取合约资金费率、持仓量和代币价格的请求 URL
         funding_rate_url = f"https://fapi.binance.com/fapi/v1/fundingRate?symbol={token_symbol}&limit=1"
-        # 发送 HTTP GET 请求获取资金费率数据
-        funding_rate_response = requests.get(funding_rate_url)
-        # 将响应内容解析为 JSON 格式
-        funding_rate_data = funding_rate_response.json()
+        open_interest_url = f"https://fapi.binance.com/fapi/v1/openInterest?symbol={token_symbol}"
+        price_url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={token_symbol}"
 
-        # 检查请求是否成功（状态码为 200）且返回的数据不为空
+        # 发送 HTTP GET 请求获取数据
+        funding_rate_response = requests.get(funding_rate_url)
+        open_interest_response = requests.get(open_interest_url)
+        price_response = requests.get(price_url)
+
+        # 解析响应内容为 JSON 格式
+        funding_rate_data = funding_rate_response.json()
+        open_interest_data = open_interest_response.json()
+        price_data = price_response.json()
+
+        # 提取资金费率
         if funding_rate_response.status_code == 200 and funding_rate_data:
-            # 从返回的数据中提取资金费率
             funding_rate = funding_rate_data[0].get("fundingRate")
         else:
-            # 如果请求失败或数据为空，将资金费率设为 None
             funding_rate = None
 
-        # 构建获取合约初始持仓量的请求 URL
-        # 从 Binance 的期货 API 获取指定交易对的当前持仓量
-        open_interest_url = f"https://fapi.binance.com/fapi/v1/openInterest?symbol={token_symbol}"
-        # 发送 HTTP GET 请求获取持仓量数据
-        open_interest_response = requests.get(open_interest_url)
-        # 将响应内容解析为 JSON 格式
-        open_interest_data = open_interest_response.json()
-
-        # 检查请求是否成功（状态码为 200）
+        # 提取初始持仓量
         if open_interest_response.status_code == 200:
-            # 从返回的数据中提取初始持仓量，并转换为浮点数
             initial_open_interest = float(open_interest_data.get("openInterest"))
         else:
-            # 如果请求失败，将初始持仓量设为 None
             initial_open_interest = None
+
+        # 提取代币价格
+        if price_response.status_code == 200:
+            price = float(price_data.get("lastPrice"))
+        else:
+            price = None
+
+        # 计算持仓量对应的 USDT 价值
+        if initial_open_interest is not None and price is not None:
+            open_interest_usdt = initial_open_interest * price
+            open_interest_usdt_m = open_interest_usdt / 1000000
+            
+        else:
+            open_interest_usdt_m = None
 
         # 用于存储最终要返回的信息
         result = []
@@ -68,11 +77,11 @@ async def get_funding_rate_and_open_interest(token_symbol):
             funding_rate_percent = float(funding_rate) * 100
             # 使用 {:.4g} 格式化，去掉多余的零
             result.append(f"{token_symbol[:-4]} 的合约资金费率是：{funding_rate_percent:.4g}%\n")
-            
-        # 如果成功获取到初始持仓量
-        if initial_open_interest is not None:
+
+        # 如果成功获取到初始持仓量的 USDT 价值
+        if open_interest_usdt_m  is not None:
             # 将初始持仓量信息添加到结果列表中
-            result.append(f"{token_symbol[:-4]} 的当前合约持仓量是：{initial_open_interest}\n")
+            result.append(f"{token_symbol[:-4]} 的当前合约持仓量是：{open_interest_usdt_m:.2f} MUSDT\n")
 
         # 如果结果列表不为空
         if result:
